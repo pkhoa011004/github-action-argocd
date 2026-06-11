@@ -1,14 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: web
+  name: frontend
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
     repoURL: https://github.com/pkhoa011004/github-action-argocd.git
     targetRevision: main
-    path: k8s
+    path: k8s/frontend
   destination:
     server: https://kubernetes.default.svc
     namespace: demo

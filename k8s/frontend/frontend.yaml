@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-html
+  namespace: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>GitOps FE</title>
+        <style>
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: Arial, sans-serif;
+            background: #f6f8fb;
+            color: #172033;
+          }
+          main {
+            width: min(720px, calc(100% - 32px));
+            padding: 32px;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            background: #ffffff;
+          }
+          h1 {
+            margin: 0 0 12px;
+            font-size: 32px;
+          }
+          p {
+            line-height: 1.6;
+          }
+          code {
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #eef3f8;
+          }
+          #backend-response {
+            margin-top: 20px;
+            padding: 16px;
+            border-left: 4px solid #0ea5e9;
+            background: #eff8ff;
+            font-weight: 700;
+          }
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>Frontend is running</h1>
+          <p>This page is served by Nginx and calls the backend through <code>/api/</code>.</p>
+          <div id="backend-response">Loading backend...</div>
+        </main>
+        <script>
+          fetch("/api/")
+            .then((response) => response.text())
+            .then((text) => {
+              document.getElementById("backend-response").textContent = text.trim();
+            })
+            .catch((error) => {
+              document.getElementById("backend-response").textContent = "Backend error: " + error;
+            });
+        </script>
+      </body>
+    </html>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx
+  namespace: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      location / {
+        root /usr/share/nginx/html;
+        index index.html;
+      }
+
+      location /api/ {
+        proxy_pass http://backend.demo.svc.cluster.local:8080/;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: frontend-html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+            - name: frontend-nginx
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+      volumes:
+        - name: frontend-html
+          configMap:
+            name: frontend-html
+        - name: frontend-nginx
+          configMap:
+            name: frontend-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
