@@ -10,11 +10,15 @@ spec:
   source:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-prometheus-stack
-    targetRevision: 86.2.2
+    targetRevision: 61.7.1
     helm:
       releaseName: kube-prometheus-stack
       values: |
         fullnameOverride: kube-prometheus-stack
+
+        prometheusOperator:
+          admissionWebhooks:
+            enabled: false
 
         prometheus:
           service:
@@ -59,5 +63,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
-      - SkipDryRunOnMissingResource=true
