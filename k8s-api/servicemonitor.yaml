@@ -1,21 +1,16 @@
-# ServiceMonitor là CRD của Prometheus Operator.
-# Nó yêu cầu Prometheus scrape metrics từ Service API.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: api
   namespace: demo
   labels:
-    # Label nhận diện ServiceMonitor; Prometheus stack đang cho phép chọn ngoài Helm values.
     app: api
 spec:
   jobLabel: app
   selector:
     matchLabels:
-      # Tìm Service có label app=api.
       app: api
   endpoints:
-    # Scrape endpoint /metrics trên port có tên http mỗi 15 giây.
     - port: http
       path: /metrics
       interval: 15s

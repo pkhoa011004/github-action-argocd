@@ -1,9 +1,6 @@
-# Namespace demo cho các workload ứng dụng.
-# File này là manifest namespace độc lập; bản trong k8s/base được root app sử dụng.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: demo
   annotations:
-    # Apply namespace trước Deployment/Service.
     argocd.argoproj.io/sync-wave: "-1"

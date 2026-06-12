@@ -1,26 +1,20 @@
-# Application triển khai frontend Nginx từ thư mục k8s/frontend.
-# Frontend expose trang HTML và proxy request /api/ sang backend service.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: frontend
   namespace: argocd
   annotations:
-    # Chạy sau backend để service backend đã sẵn sàng.
     argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
-    # Manifest frontend được lấy từ repo GitOps.
     repoURL: https://github.com/pkhoa011004/github-action-argocd.git
     targetRevision: main
     path: k8s/frontend
   destination:
-    # Frontend chạy trong namespace demo.
     server: https://kubernetes.default.svc
     namespace: demo
   syncPolicy:
     automated:
-      # Tự đồng bộ theo Git và tự sửa drift.
       prune: true
       selfHeal: true

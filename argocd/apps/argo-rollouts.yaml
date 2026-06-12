@@ -1,30 +1,22 @@
-# Application cài Argo Rollouts controller bằng Helm chart.
-# Controller này cung cấp CRD Rollout để triển khai canary/blue-green deployment.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: argo-rollouts
   namespace: argocd
   annotations:
-    # Cài controller trước API Rollout ở wave 3.
     argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   source:
-    # Helm repo chính thức của Argo.
     repoURL: https://argoproj.github.io/argo-helm
     chart: argo-rollouts
-    # Phiên bản chart Argo Rollouts đang dùng.
     targetRevision: 2.37.7
   destination:
-    # Controller được cài vào namespace riêng.
     server: https://kubernetes.default.svc
     namespace: argo-rollouts
   syncPolicy:
     automated:
-      # Giữ Helm release khớp với khai báo trong Git.
       prune: true
       selfHeal: true
     syncOptions:
-      # Tự tạo namespace argo-rollouts nếu chưa tồn tại.
       - CreateNamespace=true

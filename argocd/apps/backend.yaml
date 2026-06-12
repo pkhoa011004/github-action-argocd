@@ -1,26 +1,20 @@
-# Application triển khai backend demo từ thư mục k8s/backend.
-# Backend được sync trước frontend để frontend có service nội bộ để gọi.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: backend
   namespace: argocd
   annotations:
-    # Sau namespace, trước frontend và monitoring.
     argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
   source:
-    # Manifest backend nằm trong cùng repo GitOps.
     repoURL: https://github.com/pkhoa011004/github-action-argocd.git
     targetRevision: main
     path: k8s/backend
   destination:
-    # Backend chạy trong namespace demo.
     server: https://kubernetes.default.svc
     namespace: demo
   syncPolicy:
     automated:
-      # Tự sync, tự xóa tài nguyên thừa, tự sửa drift.
       prune: true
       selfHeal: true

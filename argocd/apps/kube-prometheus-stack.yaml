@@ -1,48 +1,34 @@
-# Application cài kube-prometheus-stack bằng Helm chart.
-# Stack này cung cấp Prometheus, Alertmanager, Grafana, kube-state-metrics,
-# node-exporter và các CRD monitoring.coreos.com để thu thập metrics.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: kube-prometheus-stack
   namespace: argocd
   annotations:
-    # Cài monitoring sau namespace/backend/frontend và trước API ServiceMonitor.
     argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   source:
-    # Helm repo của prometheus-community.
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-prometheus-stack
-    # Phiên bản chart đang triển khai.
     targetRevision: 61.7.1
     helm:
-      # Tên release Helm, cũng được dùng làm prefix cho nhiều tài nguyên.
       releaseName: kube-prometheus-stack
       values: |
-        # Rút gọn tên tài nguyên thay vì để Helm sinh tên dài.
         fullnameOverride: kube-prometheus-stack
 
-        # Tắt admission webhook để đơn giản hóa cài đặt trong môi trường demo.
         prometheusOperator:
           admissionWebhooks:
             enabled: false
 
-        # Cấu hình Prometheus server.
         prometheus:
           service:
-            # Service nội bộ cluster, không expose trực tiếp ra ngoài.
             type: ClusterIP
           prometheusSpec:
-            # Chỉ giữ dữ liệu metrics trong 7 ngày.
             retention: 7d
-            # Cho phép Prometheus chọn ServiceMonitor/PodMonitor/Rule ngoài Helm values.
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorSelectorNilUsesHelmValues: false
             ruleSelectorNilUsesHelmValues: false
             probeSelectorNilUsesHelmValues: false
-            # Giới hạn tài nguyên để tránh Prometheus dùng quá nhiều CPU/RAM.
             resources:
               requests:
                 cpu: 200m
@@ -51,7 +37,6 @@ spec:
                 cpu: 1000m
                 memory: 1Gi
 
-        # Alertmanager nhận và quản lý alert từ Prometheus.
         alertmanager:
           enabled: true
           service:
@@ -105,33 +90,25 @@ spec:
             secrets:
               - alertmanager-gmail-auth
 
-        # Grafana cung cấp dashboard quan sát hệ thống.
         grafana:
           enabled: true
           service:
             type: ClusterIP
           persistence:
-            # Demo không lưu volume lâu dài cho Grafana.
             enabled: false
 
-        # Thu metrics trạng thái object Kubernetes.
         kubeStateMetrics:
           enabled: true
 
-        # Thu metrics node qua DaemonSet node-exporter.
         nodeExporter:
           enabled: true
   destination:
-    # Monitoring stack chạy trong namespace monitoring.
     server: https://kubernetes.default.svc
     namespace: monitoring
   syncPolicy:
     automated:
-      # Tự đồng bộ Helm chart theo cấu hình trong Application này.
       prune: true
       selfHeal: true
     syncOptions:
-      # Tự tạo namespace monitoring nếu chưa tồn tại.
       - CreateNamespace=true
-      # Dùng replace để xử lý CRD lớn, tránh lỗi annotation last-applied quá dài.
       - Replace=true

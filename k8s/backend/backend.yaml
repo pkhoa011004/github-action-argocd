@@ -1,62 +1,47 @@
-# Deployment chạy backend demo bằng image hashicorp/http-echo.
-# Container trả về text đơn giản để frontend có thể gọi thử qua /api/.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
   namespace: demo
   annotations:
-    # Backend được tạo ở wave 0, sau namespace.
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  # Chạy một pod backend.
   replicas: 1
   selector:
-    # Deployment quản lý các pod có label app=backend.
     matchLabels:
       app: backend
   template:
     metadata:
       labels:
-        # Label này phải khớp selector của Deployment và Service.
         app: backend
     spec:
       containers:
         - name: backend
-          # Image http-echo tạo HTTP server nhỏ gọn cho demo.
           image: hashicorp/http-echo:1.0
           args:
-            # Backend lắng nghe port 8080 và trả về nội dung cố định.
             - "-listen=:8080"
             - "-text=hello from backend"
           ports:
-            # Port container dùng cho Service và probe.
             - containerPort: 8080
           readinessProbe:
-            # Pod chỉ nhận traffic khi endpoint / trả lời thành công.
             httpGet:
               path: /
               port: 8080
           livenessProbe:
-            # Kubernetes restart container nếu endpoint / không còn healthy.
             httpGet:
               path: /
               port: 8080
 ---
-# Service tạo DNS nội bộ backend.demo.svc.cluster.local trỏ tới pod backend.
 apiVersion: v1
 kind: Service
 metadata:
   name: backend
   namespace: demo
   annotations:
-    # Service được tạo sau Deployment.
     argocd.argoproj.io/sync-wave: "1"
 spec:
   selector:
-    # Chọn pod backend bằng label.
     app: backend
   ports:
-    # Expose port 8080 trong cluster và forward vào container port 8080.
     - port: 8080
       targetPort: 8080

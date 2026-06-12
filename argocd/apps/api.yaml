@@ -1,26 +1,20 @@
-# Application triển khai API canary bằng Argo Rollouts từ thư mục k8s-api.
-# App này phụ thuộc CRD Rollout, nên sync sau khi argo-rollouts được cài.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: api
   namespace: argocd
   annotations:
-    # Chạy sau namespace, backend/frontend và sau wave cài Argo Rollouts.
     argocd.argoproj.io/sync-wave: "3"
 spec:
   project: default
   source:
-    # Thư mục này chứa Rollout, Service và ServiceMonitor cho API.
     repoURL: https://github.com/pkhoa011004/github-action-argocd.git
     targetRevision: main
     path: k8s-api
   destination:
-    # API chạy trong namespace demo.
     server: https://kubernetes.default.svc
     namespace: demo
   syncPolicy:
     automated:
-      # Argo CD tự sync API khi Git thay đổi.
       prune: true
       selfHeal: true
