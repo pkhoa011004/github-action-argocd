@@ -22,3 +22,13 @@ def index():
 @app.get("/healthz")
 def healthz():
     return "ok", 200
+
+
+@app.route('/bad-health')
+def bad_health():
+    """Simulates a bad health check that causes the app to exit."""
+    print("Received request to /bad-health, simulating failure...")
+    sys.exit(1)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
