@@ -1,49 +1,63 @@
+# ConfigMap chứa biến môi trường MESSAGE cho app web demo.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: web-config
   namespace: demo
   annotations:
+    # Tạo ConfigMap trước Deployment.
     argocd.argoproj.io/sync-wave: "0"
 data:
   MESSAGE: "hello from gitops"
 ---
+# Deployment web demo chạy Nginx và nhận cấu hình từ ConfigMap.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: web
   namespace: demo
   annotations:
+    # Deployment chạy sau ConfigMap.
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  # Chạy 5 pod web để demo scale replica.
   replicas: 5
   selector:
     matchLabels:
+      # Deployment quản lý pod có label app=web.
       app: web
   template:
     metadata:
       labels:
+        # Label này phải khớp selector của Deployment và Service.
         app: web
     spec:
       containers:
         - name: web
+          # Image Nginx mặc định cho demo HTTP server.
           image: nginx:1.27
           ports:
+            # Nginx lắng nghe port 80.
             - containerPort: 80
           envFrom:
+            # Đưa toàn bộ key trong ConfigMap thành biến môi trường.
             - configMapRef:
                 name: web-config
 ---
+# Service expose các pod web trong namespace demo.
 apiVersion: v1
 kind: Service
 metadata:
   name: web
   namespace: demo
   annotations:
+    # Service chạy sau Deployment.
     argocd.argoproj.io/sync-wave: "2"
 spec:
   selector:
+    # Chọn pod web bằng label app=web.
     app: web
   ports:
+    # Service port 80 forward vào container port 80.
     - port: 80
       targetPort: 80

@@ -1,18 +1,30 @@
+# Root Application dùng mô hình app-of-apps: Argo CD chỉ cần apply file này,
+# sau đó nó sẽ tự quản lý toàn bộ Application con trong thư mục argocd/apps.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  # Tên Application cha hiển thị trong Argo CD UI.
   name: root
+  # Application object luôn nằm trong namespace argocd.
   namespace: argocd
 spec:
+  # Project default cho phép app dùng cấu hình mặc định của Argo CD.
   project: default
   source:
+    # Repo Git chứa toàn bộ manifest Kubernetes và Argo CD Application.
     repoURL: https://github.com/pkhoa011004/github-action-argocd.git
+    # Argo CD theo dõi nhánh main.
     targetRevision: main
+    # Thư mục chứa các Application con như backend, frontend, monitoring.
     path: argocd/apps
   destination:
+    # Cụm Kubernetes nội bộ mà Argo CD đang chạy.
     server: https://kubernetes.default.svc
+    # Các Application con được tạo trong namespace argocd.
     namespace: argocd
   syncPolicy:
     automated:
+      # Xóa tài nguyên trong cluster nếu tài nguyên đó bị xóa khỏi Git.
       prune: true
+      # Tự đưa tài nguyên về đúng trạng thái trong Git nếu bị sửa tay.
       selfHeal: true

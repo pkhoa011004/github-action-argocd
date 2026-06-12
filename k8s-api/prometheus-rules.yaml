@@ -1,0 +1,172 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: api-rules
+  namespace: demo
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: demo.workload.rules
+      rules:
+        - alert: HighCPUUsage
+          expr: |
+            (
+              sum by (namespace, pod, container) (
+                rate(container_cpu_usage_seconds_total{namespace="demo", container!="", image!=""}[5m])
+              )
+              /
+              sum by (namespace, pod, container) (
+                kube_pod_container_resource_limits{namespace="demo", resource="cpu"} > 0
+              )
+            ) > 0.80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CPU usage is above 80%"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its CPU limit for more than 5 minutes."
+
+        - alert: HighMemoryUsage
+          expr: |
+            (
+              sum by (namespace, pod, container) (
+                container_memory_working_set_bytes{namespace="demo", container!="", image!=""}
+              )
+              /
+              sum by (namespace, pod, container) (
+                kube_pod_container_resource_limits{namespace="demo", resource="memory"} > 0
+              )
+            ) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Memory usage is above 90%"
+            description: "[CRITICAL] {{ $labels.container }} memory usage exceeded 90% in pod {{ $labels.pod }}."
+
+        - alert: PodCrashLooping
+          expr: |
+            max_over_time(kube_pod_container_status_waiting_reason{namespace="demo", reason="CrashLoopBackOff"}[5m]) == 1
+            or
+            increase(kube_pod_container_status_restarts_total{namespace="demo"}[5m]) > 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod is crashing or restarting"
+            description: "Pod {{ $labels.pod }} container {{ $labels.container }} is in CrashLoopBackOff or restarted during the last 5 minutes."
+
+    - name: api.service.rules
+      rules:
+        - alert: ApiServiceDown
+          expr: up{namespace="demo", job="api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            service: api
+          annotations:
+            summary: "Service api is DOWN"
+            description: "Prometheus cannot scrape the api service in namespace demo."
+
+        - alert: ApiHighErrorRate
+          expr: |
+            (
+              sum(rate(flask_http_request_total{namespace="demo", job="api", status=~"5.."}[5m]))
+              /
+              clamp_min(sum(rate(flask_http_request_total{namespace="demo", job="api"}[5m])), 1)
+            ) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            service: api
+          annotations:
+            summary: "API 5xx error rate is above 5%"
+            description: "API error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+        - alert: ApiHighLatency
+          expr: |
+            (
+              histogram_quantile(
+                0.95,
+                sum by (le) (
+                  rate(flask_http_request_duration_seconds_bucket{namespace="demo", job="api"}[5m])
+                )
+              ) > 0.5
+            )
+            or
+            (
+              histogram_quantile(
+                0.99,
+                sum by (le) (
+                  rate(flask_http_request_duration_seconds_bucket{namespace="demo", job="api"}[5m])
+                )
+              ) > 1
+            )
+          for: 5m
+          labels:
+            severity: warning
+            service: api
+          annotations:
+            summary: "API latency is too high"
+            description: "API p95 latency is above 500ms or p99 latency is above 1000ms."
+
+        - alert: ApiSLOBurnRateHigh
+          expr: |
+            (
+              (
+                sum(rate(flask_http_request_total{namespace="demo", job="api", status=~"5.."}[5m]))
+                /
+                clamp_min(sum(rate(flask_http_request_total{namespace="demo", job="api"}[5m])), 1)
+              ) > (14.4 * 0.001)
+            )
+            and
+            (
+              (
+                sum(rate(flask_http_request_total{namespace="demo", job="api", status=~"5.."}[1h]))
+                /
+                clamp_min(sum(rate(flask_http_request_total{namespace="demo", job="api"}[1h])), 1)
+              ) > (14.4 * 0.001)
+            )
+          for: 2m
+          labels:
+            severity: critical
+            service: api
+            slo: "99.9"
+          annotations:
+            summary: "API SLO error budget is burning too fast"
+            description: "API 99.9% SLO burn rate is above 14.4x on both 5m and 1h windows."
+
+        - alert: ApiCanaryHighErrorRate
+          expr: |
+            (
+              sum(rate(flask_http_request_total{namespace="demo", job="api", status=~"5.."}[2m]))
+              /
+              clamp_min(sum(rate(flask_http_request_total{namespace="demo", job="api"}[2m])), 1)
+            ) > 0.05
+          for: 1m
+          labels:
+            severity: critical
+            service: api
+            rollout: canary
+          annotations:
+            summary: "Canary deployment error rate is too high"
+            description: "Canary deployment should be aborted because API 5xx error rate is above 5%."
+
+    - name: node.rules
+      rules:
+        - alert: NodeDiskAlmostFull
+          expr: |
+            (
+              1 - (
+                node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs", mountpoint!~"/run.*|/var/lib/docker/.+|/var/lib/kubelet/.+"}
+                /
+                node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs", mountpoint!~"/run.*|/var/lib/docker/.+|/var/lib/kubelet/.+"}
+              )
+            ) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk usage is above 85%"
+            description: "Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ $value | humanizePercentage }} full."

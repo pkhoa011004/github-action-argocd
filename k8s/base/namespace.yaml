@@ -1,6 +1,9 @@
+# Namespace demo là nơi chạy các workload ứng dụng:
+# backend, frontend, API rollout và ServiceMonitor.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: demo
   annotations:
+    # Namespace phải được tạo trước các tài nguyên namespaced khác.
     argocd.argoproj.io/sync-wave: "-1"

@@ -1,56 +1,111 @@
+# Rollout là workload của Argo Rollouts, tương tự Deployment nhưng hỗ trợ canary.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   name: api
   namespace: demo
   labels:
+    # Label nhận diện API cho Service và ServiceMonitor.
     app: api
 spec:
+  # Chạy 4 pod để canary có thể chia traffic theo tỷ lệ.
   replicas: 4
   selector:
     matchLabels:
+      # Rollout quản lý pod có label app=api.
       app: api
   template:
     metadata:
       labels:
+        # Label này phải khớp selector của Rollout, Service và ServiceMonitor.
         app: api
     spec:
       containers:
         - name: api
+          # Image API demo build local và load vào cluster.
           image: w9-api:1
+          # Không bắt buộc pull từ registry nếu image đã có sẵn trên node/minikube.
           imagePullPolicy: IfNotPresent
           ports:
+            # Port named http để ServiceMonitor có thể scrape theo tên.
             - name: http
               containerPort: 8080
               protocol: TCP
           env:
+            # Điều khiển tỷ lệ lỗi giả lập cho demo rollout/monitoring.
             - name: ERROR_RATE
               value: "0"
+            # Version hiển thị trong response để phân biệt bản rollout.
             - name: VERSION
               value: "v1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
           readinessProbe:
+            # Pod chỉ nhận traffic khi endpoint healthz trả lời OK.
             httpGet:
               path: /healthz
               port: 8080
   strategy:
     canary:
+      # Các bước rollout canary: tăng dần traffic và pause để quan sát.
       steps:
+        # Đưa 25% traffic sang version mới rồi chờ xác nhận thủ công.
         - setWeight: 25
+        - analysis:
+            templates:
+              - templateName: api-error-rate
         - pause: {}
+        # Tăng lên 50%, chờ 30 giây.
         - setWeight: 50
+        - analysis:
+            templates:
+              - templateName: api-error-rate
         - pause:
             duration: 30s
+        # Hoàn tất rollout 100%.
         - setWeight: 100
 ---
+# Service expose API trong namespace demo.
 apiVersion: v1
 kind: Service
 metadata:
   name: api
   namespace: demo
+  labels:
+    app: api
 spec:
   selector:
+    # Chọn pod API bằng label app=api.
     app: api
   ports:
+    # Port name http được ServiceMonitor sử dụng để scrape metrics.
     - name: http
       port: 8080
       targetPort: 8080
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: api-error-rate
+  namespace: demo
+spec:
+  metrics:
+    - name: api-error-rate
+      interval: 30s
+      count: 2
+      failureLimit: 1
+      successCondition: result[0] < 0.05
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          query: |
+            (
+              sum(rate(flask_http_request_total{namespace="demo", job="api", status=~"5.."}[2m]))
+              /
+              clamp_min(sum(rate(flask_http_request_total{namespace="demo", job="api"}[2m])), 1)
+            ) or vector(0)
