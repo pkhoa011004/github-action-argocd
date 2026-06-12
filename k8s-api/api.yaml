@@ -9,7 +9,7 @@ metadata:
     app: api
 spec:
   # Chạy 4 pod để canary có thể chia traffic theo tỷ lệ.
-  replicas: 4
+  replicas: 6
   selector:
     matchLabels:
       # Rollout quản lý pod có label app=api.
